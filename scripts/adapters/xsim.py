@@ -1,11 +1,11 @@
 import os, subprocess, shutil
 from pathlib import Path
-
+from typing import List
 def _run(cmd, cwd=None):
     print("[cmd]", " ".join(cmd))
     return subprocess.run(cmd, cwd=cwd, check=True)
 
-def run_xsim(top: str, sources: list[str], outdir: str, waves: bool=False):
+def run_xsim(top: str, sources: List[str], outdir: str, waves: bool=False):
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
 

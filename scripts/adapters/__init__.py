@@ -1,1 +1,0 @@
-New-Item -ItemType File -Force scripts\adapters\__init__.py | Out-Null
