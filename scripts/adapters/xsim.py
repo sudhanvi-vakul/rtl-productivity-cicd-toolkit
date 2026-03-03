@@ -1,4 +1,3 @@
-@'
 import os, subprocess, shutil
 from pathlib import Path
 
@@ -31,4 +30,3 @@ def run_xsim(top: str, sources: list[str], outdir: str, waves: bool=False):
     else:
         tcl.write_text("run all\nquit\n")
         _run([xsim, "work.sim", "-tclbatch", str(tcl)], cwd=out)
-'@ | Set-Content -NoNewline scripts/adapters/xsim.py

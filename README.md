@@ -1,4 +1,3 @@
-@'
 # C0 — RTL Productivity + CI/CD Toolkit
 
 Goal: one-command compile/run/regress with reproducible artifacts (logs/waves/report).

@@ -1,7 +1,6 @@
-@'
 import argparse, yaml, time
 from pathlib import Path
-from adapters.xsim import run_xsim
+from scripts.adapters.xsim import run_xsim
 
 def load_tests(path="tests.yaml"):
     with open(path, "r") as f:
@@ -35,4 +34,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-'@ | Set-Content -NoNewline scripts/run.py
