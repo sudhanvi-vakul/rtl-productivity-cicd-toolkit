@@ -1,0 +1,50 @@
+name: C0 CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  sanity-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify tests.yaml parses
+        run: |
+          python - <<EOF
+          import yaml
+          with open("tests.yaml") as f:
+              data = yaml.safe_load(f)
+          assert isinstance(data, dict)
+          print("tests.yaml OK")
+          EOF
+
+      - name: Verify runner imports
+        run: |
+          python - <<EOF
+          import sys
+          sys.path.insert(0, ".")
+          from scripts.adapters.xsim import run_xsim
+          print("Adapter import OK")
+          EOF
+
+      - name: Check required folders exist
+        run: |
+          test -d rtl
+          test -d tb
+          test -d scripts
+          test -d reports
+          echo "Folder structure OK"
