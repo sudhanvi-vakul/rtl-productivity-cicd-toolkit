@@ -1,4 +1,3 @@
-@'
 module hello_tb;
   hello dut();
   initial begin
@@ -8,4 +7,3 @@ module hello_tb;
     $finish;
   end
 endmodule
-'@ | Set-Content -NoNewline tb/hello_tb.sv
