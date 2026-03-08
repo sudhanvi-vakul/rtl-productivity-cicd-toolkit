@@ -1,58 +1,78 @@
-import subprocess
 import shutil
+import subprocess
 from pathlib import Path
 from typing import List, Optional
 
 
-def _run(cmd: List[str], cwd: Optional[Path] = None) -> subprocess.CompletedProcess:
+def _run_logged(
+    cmd: List[str],
+    log_path: Path,
+    cwd: Optional[Path] = None,
+) -> None:
     print("[cmd]", " ".join(cmd))
-    return subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=True)
+
+    result = subprocess.run(
+        cmd,
+        cwd=str(cwd) if cwd else None,
+        text=True,
+        capture_output=True,
+    )
+
+    text = ""
+    if result.stdout:
+        text += result.stdout
+    if result.stderr:
+        if text and not text.endswith("\n"):
+            text += "\n"
+        text += result.stderr
+
+    log_path.write_text(text, encoding="utf-8", errors="ignore")
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Command failed with return code {result.returncode}. "
+            f"See log: {log_path}"
+        )
 
 
 def run_xsim(top: str, sources: List[str], outdir: str, waves: bool = False) -> None:
-    # Make output dir absolute to avoid any double-relative path bugs
     out = Path(outdir).resolve()
     out.mkdir(parents=True, exist_ok=True)
 
-    # Repo root = .../rtl-productivity-cicd-toolkit
     repo = Path(__file__).resolve().parents[2]
-
-    # Make sources absolute so running from out/ never breaks paths
     abs_sources = [str((repo / s).resolve()) for s in sources]
 
     xvlog = shutil.which("xvlog")
     xelab = shutil.which("xelab")
     xsim = shutil.which("xsim")
+
     if not (xvlog and xelab and xsim):
         raise RuntimeError(
             "XSIM not found (need xvlog/xelab/xsim in PATH). "
             "Source your Vivado/cadtools script first."
         )
 
-    # Compile
-    _run([xvlog, "-sv"] + abs_sources, cwd=out)
+    compile_log = out / "compile.log"
+    elab_log = out / "elab.log"
+    sim_log = out / "sim.log"
+    tcl = out / "run.tcl"
 
-    # Elaborate (debug info required for waveform logging)
-    # IMPORTANT: must be '-debug', not 'debug'
-    _run([xelab, "-debug", "typical", top, "-snapshot", "work.sim"], cwd=out)
+    _run_logged([xvlog, "-sv"] + abs_sources, log_path=compile_log, cwd=out)
 
-    # Write run.tcl into the run directory
-    tcl = (out / "run.tcl").resolve()
+    _run_logged(
+        [xelab, "-debug", "typical", top, "-snapshot", "work.sim"],
+        log_path=elab_log,
+        cwd=out,
+    )
 
     if waves:
-        # Most reliable: log everything from root.
-        # For small designs (like hello), this is perfect and avoids scope-match warnings.
         tcl_contents = "log_wave -r /\nrun all\nquit\n"
     else:
         tcl_contents = "run all\nquit\n"
 
     tcl.write_text(tcl_contents, encoding="utf-8")
 
-    if not tcl.is_file():
-        raise FileNotFoundError("run.tcl was not created at: %s" % str(tcl))
-
-    # Run simulation in batch; auto-quit on finish/error
-    _run(
+    _run_logged(
         [
             xsim,
             "work.sim",
@@ -63,5 +83,6 @@ def run_xsim(top: str, sources: List[str], outdir: str, waves: bool = False) -> 
             "-tclbatch",
             str(tcl),
         ],
+        log_path=sim_log,
         cwd=out,
     )
