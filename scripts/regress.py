@@ -1,8 +1,20 @@
-import argparse, time, yaml, subprocess, sys
+import argparse
+import time
+import yaml
+import subprocess
+import sys
 from pathlib import Path
 
+
 def _run(cmd, cwd=None):
-    return subprocess.run(cmd, cwd=cwd, text=True, capture_output=True)
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+    )
+
 
 def main():
     ap = argparse.ArgumentParser()
@@ -11,12 +23,12 @@ def main():
     ap.add_argument("--waves", action="store_true")
     args = ap.parse_args()
 
-    with open("tests.yaml","r") as f:
+    with open("tests.yaml", "r") as f:
         cfg = yaml.safe_load(f) or {}
 
     tests = cfg.get(args.suite, [])
     if not tests:
-        raise SystemExit(f"No tests found for suite '{args.suite}'")
+        raise SystemExit("No tests found for suite '{}'".format(args.suite))
 
     run_id = time.strftime("run_%Y%m%d_%H%M%S")
     outroot = Path("reports") / run_id
@@ -26,22 +38,57 @@ def main():
 
     for t in tests:
         name = t["name"]
-        log = outroot / "logs" / f"{name}.log"
-        cmd = [sys.executable, "scripts/run.py", "--tool", args.tool, "--suite", args.suite, "--test", name]
+        log = outroot / "logs" / "{}.log".format(name)
+
+        cmd = [
+            sys.executable,
+            "-m",
+            "scripts.run",
+            "--tool",
+            args.tool,
+            "--suite",
+            args.suite,
+            "--test",
+            name,
+        ]
         if args.waves:
             cmd.append("--waves")
 
         r = _run(cmd)
-        log.write_text((r.stdout or "") + "\n" + (r.stderr or ""))
 
-        results.append({
-            "name": name,
-            "rc": r.returncode,
-            "log": str(log).replace("\\","/"),
-        })
+        text = ""
+        if r.stdout:
+            text += r.stdout
+        if r.stderr:
+            if text and not text.endswith("\n"):
+                text += "\n"
+            text += r.stderr
 
-    (outroot / "results.yaml").write_text(yaml.safe_dump({"run_id": run_id, "suite": args.suite, "tool": args.tool, "results": results}, sort_keys=False))
-    print(f"[ok] regress finished: {outroot}")
+        log.write_text(text, encoding="utf-8", errors="ignore")
+
+        results.append(
+            {
+                "name": name,
+                "rc": r.returncode,
+                "log": str(log).replace("\\", "/"),
+            }
+        )
+
+    (outroot / "results.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "run_id": run_id,
+                "suite": args.suite,
+                "tool": args.tool,
+                "results": results,
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    print("[ok] regress finished: {}".format(outroot))
+
 
 if __name__ == "__main__":
     main()

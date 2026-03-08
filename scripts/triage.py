@@ -1,43 +1,70 @@
-import argparse, re, yaml
+import sys
+import yaml
 from pathlib import Path
 
-RULES = [
-    ("SIM_TOOL_MISSING", re.compile(r"(XSIM not found|xvlog.*not found|xelab.*not found|xsim.*not found)", re.I)),
-    ("COMPILE_ERROR", re.compile(r"(ERROR:|Syntax error|xvlog: ERROR|vlog-)", re.I)),
-    ("ELAB_ERROR", re.compile(r"(xelab: ERROR|elaboration|Failed to elaborate)", re.I)),
-    ("RUNTIME_ERROR", re.compile(r"(FATAL:|Segmentation fault|\$fatal|UVM_FATAL)", re.I)),
-]
 
-def classify(text: str) -> str:
-    for label, pat in RULES:
-        if pat.search(text):
-            return label
-    if "HELLO_TB_DONE" in text or "run all" in text:
-        return "PASS_LIKELY"
-    return "UNKNOWN"
+def classify_result(rc, text):
+    if rc == 0:
+        return "PASS"
+
+    t = text.upper()
+
+    if "ASSERT" in t:
+        return "ASSERTION_FAIL"
+    if "ERROR:" in t:
+        return "TOOL_ERROR"
+    if "FATAL" in t:
+        return "FATAL"
+    if "FAIL" in t:
+        return "TEST_FAIL"
+
+    return "FAIL_UNKNOWN"
+
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("run_dir", help="reports/run_<id>")
-    args = ap.parse_args()
+    if len(sys.argv) != 2:
+        raise SystemExit("Usage: python -m scripts.triage <run_dir>")
 
-    run_dir = Path(args.run_dir)
-    logs_dir = run_dir / "logs"
-    if not logs_dir.exists():
-        raise SystemExit(f"Missing {logs_dir}")
+    run_dir = Path(sys.argv[1])
+    results_yaml = run_dir / "results.yaml"
+
+    if not results_yaml.exists():
+        raise SystemExit("Missing {}".format(results_yaml))
+
+    data = yaml.safe_load(results_yaml.read_text()) or {}
+    results = data.get("results", [])
 
     triage = []
-    for log in sorted(logs_dir.glob("*.log")):
-        txt = log.read_text(errors="ignore")
-        triage.append({
-            "test": log.stem,
-            "classification": classify(txt),
-            "log": str(log).replace("\\","/"),
-        })
 
-    out = run_dir / "triage.yaml"
-    out.write_text(yaml.safe_dump({"triage": triage}, sort_keys=False))
-    print(f"[ok] wrote {out}")
+    for r in results:
+        name = r.get("name", "unknown")
+        rc = r.get("rc", 1)
+        log_path = Path(r.get("log", ""))
+
+        text = ""
+        if log_path.exists():
+            text = log_path.read_text(encoding="utf-8", errors="ignore")
+
+        classification = classify_result(rc, text)
+
+        triage.append(
+            {
+                "test": name,
+                "classification": classification,
+                "rc": rc,
+                "log": str(log_path).replace("\\", "/"),
+            }
+        )
+
+    out = {"triage": triage}
+    out_path = run_dir / "triage.yaml"
+    out_path.write_text(
+        yaml.safe_dump(out, sort_keys=False),
+        encoding="utf-8",
+    )
+
+    print("[ok] wrote {}".format(out_path))
+
 
 if __name__ == "__main__":
     main()

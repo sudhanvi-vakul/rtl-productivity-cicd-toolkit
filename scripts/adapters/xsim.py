@@ -14,8 +14,9 @@ def _run_logged(
     result = subprocess.run(
         cmd,
         cwd=str(cwd) if cwd else None,
-        text=True,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
     )
 
     text = ""
@@ -30,12 +31,20 @@ def _run_logged(
 
     if result.returncode != 0:
         raise RuntimeError(
-            f"Command failed with return code {result.returncode}. "
-            f"See log: {log_path}"
+            "Command failed with return code {}. See log: {}".format(
+                result.returncode, log_path
+            )
         )
 
 
-def run_xsim(top: str, sources: List[str], outdir: str, waves: bool = False) -> None:
+def run_xsim(
+    top: str,
+    sources: List[str],
+    outdir: str,
+    waves: bool = False,
+    defines: Optional[List[str]] = None,
+    plusargs: Optional[List[str]] = None,
+) -> None:
     out = Path(outdir).resolve()
     out.mkdir(parents=True, exist_ok=True)
 
@@ -52,12 +61,23 @@ def run_xsim(top: str, sources: List[str], outdir: str, waves: bool = False) -> 
             "Source your Vivado/cadtools script first."
         )
 
+    defines = defines or []
+    plusargs = plusargs or []
+
     compile_log = out / "compile.log"
     elab_log = out / "elab.log"
     sim_log = out / "sim.log"
     tcl = out / "run.tcl"
 
-    _run_logged([xvlog, "-sv"] + abs_sources, log_path=compile_log, cwd=out)
+    define_args = []
+    for d in defines:
+        define_args.extend(["-d", d])
+
+    _run_logged(
+        [xvlog, "-sv"] + define_args + abs_sources,
+        log_path=compile_log,
+        cwd=out,
+    )
 
     _run_logged(
         [xelab, "-debug", "typical", top, "-snapshot", "work.sim"],
@@ -72,17 +92,27 @@ def run_xsim(top: str, sources: List[str], outdir: str, waves: bool = False) -> 
 
     tcl.write_text(tcl_contents, encoding="utf-8")
 
-    _run_logged(
+    sim_cmd = [
+        xsim,
+        "work.sim",
+    ]
+
+    for arg in plusargs:
+        sim_cmd.extend(["--testplusarg", arg])
+
+    sim_cmd.extend(
         [
-            xsim,
-            "work.sim",
             "-onfinish",
             "quit",
             "-onerror",
             "quit",
             "-tclbatch",
             str(tcl),
-        ],
+        ]
+    )
+
+    _run_logged(
+        sim_cmd,
         log_path=sim_log,
         cwd=out,
     )

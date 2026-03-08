@@ -1,35 +1,56 @@
-# RTL Productivity and CI/CD Toolkit
+# RTL Productivity + CI/CD Toolkit
 
-A small reproducible RTL execution backbone for smoke runs, regressions, triage, and report generation.
+A small Stage 0 backbone for RTL projects.  
+This repository provides a repeatable structure for smoke runs, regressions, log capture, triage, and summary generation using Vivado XSIM as the baseline simulator.
 
-## Goal
+## Purpose
 
-Create a repeatable repository structure and command flow so every RTL project can be:
-- run the same way every time
-- debugged from saved artifacts
-- summarized with simple reports
-- resumed after a break without depending on shell history
+The goal of this repository is to stop treating RTL work like loose files and shell history.  
+Instead, it creates a reusable execution flow with:
 
-This repo is the backbone for later RTL projects.
+- a predictable repo structure
+- one-command smoke runs
+- saved logs and wave databases
+- regression entry points
+- triage classification
+- summary report generation
+
+This repo is intended to serve as the **Stage 0 backbone** for later RTL projects such as CDC/reset, NSoC integration, low-power layering, and accelerator integration.
 
 ## Current status
 
-Current supported simulator path:
-- XSIM via Vivado / Xilinx tools in PATH
+Implemented today:
 
-Current implemented flow:
-- single smoke run
-- regression wrapper
-- triage classification
-- markdown summary report
+- baseline simulator flow using **Vivado 2019.2 XSIM**
+- smoke test execution through `scripts.run`
+- regression execution through `scripts.regress`
+- saved artifacts under `reports/run_<timestamp>/`
+- triage generation through `scripts.triage`
+- markdown summary generation through `scripts.report`
+
+Current smoke design:
+
+- `rtl/hello.sv`
+- `tb/hello_tb.sv`
 
 ## Repository structure
 
 ```text
-rtl/        RTL source files
-tb/         Testbench source files
-scripts/    Run, regress, triage, report scripts
-docs/       Command notes and restart instructions
-reports/    Generated run artifacts
-evidence/   Screenshots / proof material you want to keep
-tests.yaml  Test list configuration
+rtl-productivity-cicd-toolkit/
+├── README.md
+├── requirements.txt
+├── tests.yaml
+├── rtl/
+├── tb/
+├── scripts/
+│   ├── run.py
+│   ├── regress.py
+│   ├── triage.py
+│   ├── report.py
+│   └── adapters/
+├── docs/
+├── reports/
+├── evidence/
+├── tests/
+├── tools/
+└── ci/
